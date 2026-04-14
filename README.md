@@ -72,6 +72,25 @@ Next session auto-applies it
 
 They are complementary — ccmemo manages *what you know*, ccevolve manages *how you behave*.
 
+## For Contributors
+
+ccevolve follows the LevNas plugin conventions maintained in [claudecode-plugins/docs/development-guide.md](https://github.com/LevNas/claudecode-plugins/blob/main/docs/development-guide.md). Document placement and SKILL.md frontmatter rules are summarized below.
+
+| Location | Purpose | Audience |
+|----------|---------|----------|
+| `README.md` | Plugin overview and usage | Users (humans) |
+| `CLAUDE.md` | Auto-loaded workflow definition | Claude Code |
+| `skills/<name>/SKILL.md` | Skill definition with required frontmatter (`name`/`description`/`license`/`allowed-tools`) | Claude Code |
+| `skills/<name>/references/` | Runtime reference resources | Claude Code |
+| `docs/` | Developer/operator internal docs | Contributors (humans) |
+| `hooks/` | Hook implementations and `hooks.json` | Claude Code |
+
+Run the central linter from claudecode-plugins before sending a PR:
+
+```bash
+bash ~/src/github.com/LevNas/claudecode-plugins/scripts/lint-skills.sh ~/src/github.com/LevNas/ccevolve
+```
+
 ## License
 
 MIT
