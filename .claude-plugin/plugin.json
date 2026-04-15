@@ -1,0 +1,11 @@
+{
+  "name": "ccevolve",
+  "description": "Self-improving workflow for Claude Code. Enforces Knowledge-First Flow, detects recurring errors, and manages domain-specific rules in .claude/rules/.",
+  "version": "0.1.0",
+  "author": {
+    "name": "LevNas"
+  },
+  "repository": "https://github.com/LevNas/ccevolve",
+  "license": "MIT",
+  "keywords": ["self-improvement", "workflow", "rules", "error-detection", "knowledge"]
+}
