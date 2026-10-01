@@ -1,13 +1,45 @@
 {
   "hooks": {
-    "PostToolUse": [
+    "PostToolUseFailure": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/posttooluse_error_detector.py\"",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/posttoolusefailure_error_detector.py\"",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/permission_observer.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/permission_observer.py\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/stop_advisor_counter.py\"",
+            "timeout": 10
           }
         ]
       }
