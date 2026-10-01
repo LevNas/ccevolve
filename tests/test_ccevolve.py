@@ -147,6 +147,28 @@ def test_failure_detector():
         check("failure: interrupts and other events ignored", len(events(project)) == 2, events(project))
 
 
+def test_keys_from_review():
+    """Review findings: ordinary long words stay readable; cd-prefixed commands key on the real program."""
+    import permission_observer as po
+    import posttoolusefailure_error_detector as fd
+    check("error key: long option without digits is not masked",
+          "--untracked-files=allxyz" in fd.normalize_error("Exit code 2\nerror: unknown option --untracked-files=allxyz"),
+          fd.normalize_error("Exit code 2\nerror: unknown option --untracked-files=allxyz"))
+    check("error key: token-like string with digits is masked",
+          "<token>" in fd.normalize_error("Exit code 1\nbad credential ghx_ab12cd34ef56gh78ij90"),
+          fd.normalize_error("Exit code 1\nbad credential ghx_ab12cd34ef56gh78ij90"))
+    cases = {
+        "cd /tmp/repo && git push": "Bash:git",
+        "(cd x; make)": "Bash:make",
+        "cd x": "Bash:cd",
+        "pushd a; FOO=1 npm test": "Bash:npm",
+        "sudo rm -rf x": "Bash:sudo",
+    }
+    for cmd, want in cases.items():
+        got = po.prompt_key("Bash", {"command": cmd})
+        check(f"permission key: {cmd!r} -> {want}", got == want, got)
+
+
 def test_report():
     with tempfile.TemporaryDirectory() as project:
         path = os.path.join(project, ledger.LEDGER_RELPATH)

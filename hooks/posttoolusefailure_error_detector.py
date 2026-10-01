@@ -33,7 +33,9 @@ def normalize_error(text: str) -> str:
         if not line or line.startswith(("+ ", "Warning:", "Note:", "Exit code")):
             continue
         line = re.sub(r"/[^\s:]+", "<path>", line)
-        line = re.sub(r"[A-Za-z0-9_\-+=/]{20,}", "<token>", line)
+        # Token-like: a run of 20+ such characters that contains a digit.
+        # Ordinary long words and options (no digit) stay readable.
+        line = re.sub(r"(?<![A-Za-z0-9_\-+=/])(?=[A-Za-z0-9_\-+=/]*\d)[A-Za-z0-9_\-+=/]{20,}", "<token>", line)
         line = re.sub(r"\b\d+\b", "<N>", line)
         return line[:120]
     first = text.strip().splitlines()[0] if text.strip() else ""

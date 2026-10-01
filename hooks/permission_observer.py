@@ -23,13 +23,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lib import ledger  # noqa: E402
 
 
+NAVIGATION = {"cd", "pushd", "popd"}
+
+
+def _program(segment: str) -> str:
+    """Program name of one command segment, skipping VAR=value assignments and '('."""
+    words = [w for w in segment.replace("(", " ").split()
+             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", w)]
+    first = os.path.basename(words[0]) if words else ""
+    return re.sub(r"[^A-Za-z0-9._+-]", "", first)[:40]
+
+
 def prompt_key(tool_name: str, tool_input) -> str:
     if tool_name == "Bash" and isinstance(tool_input, dict):
         command = str(tool_input.get("command", "")).strip()
-        # Skip leading VAR=value assignments; keep only the program name.
-        words = [w for w in command.split() if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", w)]
-        first = os.path.basename(words[0]) if words else ""
-        first = re.sub(r"[^A-Za-z0-9._+-]", "", first)[:40]
+        # Key on the first real program: `cd dir && git push` is a git prompt.
+        programs = [p for p in (_program(s) for s in re.split(r"&&|\|\||;", command)) if p]
+        real = [p for p in programs if p not in NAVIGATION]
+        first = (real or programs or [""])[0]
         return f"Bash:{first}" if first else "Bash"
     return tool_name or "unknown"
 
