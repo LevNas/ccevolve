@@ -46,9 +46,9 @@ Events go to `<project>/.claude/ledger/events.jsonl`, one JSON object per line (
 |---|---|---|---|
 | Error detector | `PostToolUseFailure` | `tool_error`, keyed by tool and normalized first error line | On the 2nd identical failure in a session, context for Claude asking for a fix that stops the recurrence, preferring a computed check |
 | Permission observer | `PermissionRequest`, `PermissionDenied` | `permission_prompt`, keyed by tool and program name (`Bash:git`) | Nothing; returns no decision, so prompts are unchanged |
-| Advisor counter | `Stop` | `advisor_call`, one per advisor server-tool call in the transcript | A notice to you each time the session's count passes a multiple of `CCEVOLVE_ADVISOR_NOTIFY_AT` (default 3): the advisor re-reads the whole conversation uncached on every call |
+| Advisor counter | `Stop`, `SessionEnd` | `advisor_call`, one per advisor server-tool call in the transcript (a call written after the Stop hook started is caught by a short retry in advisor sessions, the next Stop, or SessionEnd) | A notice to you each time the session's count passes a multiple of `CCEVOLVE_ADVISOR_NOTIFY_AT` (default 3): the advisor re-reads the whole conversation uncached on every call |
 
-The advisor counter reads the block shape the Claude API documents (`server_tool_use` named `advisor`); it has not yet been checked against a real Claude Code session with the advisor on.
+The advisor counter reads the block shape the Claude API documents (`server_tool_use` named `advisor`), confirmed on a real Claude Code session (v2.1.284, Fable 5.1 advisor).
 
 ### Skill: `/promote-to-computation`
 Runs `scripts/ledger_report.py` (counts by kind and key over a window, candidates seen at least N times, advisor calls per session) and drafts, for each recurring judgment that always has the same answer for the same input, the computed form and the prose it would retire. A human approves every proposal; the skill never writes permission rules or settings.

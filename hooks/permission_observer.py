@@ -24,6 +24,10 @@ from lib import ledger  # noqa: E402
 
 
 NAVIGATION = {"cd", "pushd", "popd"}
+# Programs that never need a permission of their own: in a compound command the
+# prompt is about something else (`printf msg > f && git commit -F f` is a git
+# prompt). Used only when another program is present.
+HARMLESS = {"printf", "echo", "true", "false", ":", "sleep", "test", "[", "pwd", "date"}
 
 
 def _program(segment: str) -> str:
@@ -37,10 +41,12 @@ def _program(segment: str) -> str:
 def prompt_key(tool_name: str, tool_input) -> str:
     if tool_name == "Bash" and isinstance(tool_input, dict):
         command = str(tool_input.get("command", "")).strip()
-        # Key on the first real program: `cd dir && git push` is a git prompt.
+        # Key on the first significant program: `cd dir && git push` and
+        # `printf msg > f && git commit -F f` are git prompts.
         programs = [p for p in (_program(s) for s in re.split(r"&&|\|\||;", command)) if p]
         real = [p for p in programs if p not in NAVIGATION]
-        first = (real or programs or [""])[0]
+        significant = [p for p in real if p not in HARMLESS]
+        first = (significant or real or programs or [""])[0]
         return f"Bash:{first}" if first else "Bash"
     return tool_name or "unknown"
 
