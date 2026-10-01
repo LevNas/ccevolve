@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -108,6 +109,50 @@ def test_advisor_threshold_and_opt_out():
         check("CCEVOLVE_LEDGER=0: nothing written", events(project) == [] and out == "", out)
 
 
+def test_advisor_session_end_records_without_notice():
+    with tempfile.TemporaryDirectory() as project:
+        transcript = os.path.join(project, "t.jsonl")
+        write_transcript(transcript, 3)
+        rc, out = run("stop_advisor_counter.py", project, {
+            "session_id": "S1", "transcript_path": transcript, "cwd": project, "hook_event_name": "SessionEnd"})
+        check("SessionEnd: calls recorded", len([e for e in events(project) if e["kind"] == "advisor_call"]) == 3,
+              events(project))
+        check("SessionEnd: no notice", out == "", out)
+
+
+def test_advisor_late_write_is_caught_by_retry():
+    """The last message lands after the Stop hook starts: an advisor session waits once and reads again."""
+    with tempfile.TemporaryDirectory() as project:
+        transcript = os.path.join(project, "t.jsonl")
+        write_transcript(transcript, 1)  # an earlier call, already recorded below
+        ledger.append(os.path.join(project, ledger.LEDGER_RELPATH), "S1", "advisor_call", "advisor",
+                      event_id="srvtoolu_000")
+        env = {k: v for k, v in os.environ.items() if not k.startswith("CCEVOLVE_")}
+        env["CLAUDE_PROJECT_DIR"] = project
+        proc = subprocess.Popen([sys.executable, os.path.join(HOOKS, "stop_advisor_counter.py")],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+        proc.stdin.write(json.dumps({"session_id": "S1", "transcript_path": transcript, "cwd": project,
+                                     "hook_event_name": "Stop"}))
+        proc.stdin.close()
+        time.sleep(0.2)  # the in-flight message lands while the hook is running
+        write_transcript(transcript, 1, start=1)
+        proc.wait(timeout=10)
+        ids = sorted(e["id"] for e in events(project) if e["kind"] == "advisor_call")
+        check("late write: the in-flight call is recorded on retry", ids == ["srvtoolu_000", "srvtoolu_001"], ids)
+
+
+def test_advisor_no_wait_without_advisor():
+    with tempfile.TemporaryDirectory() as project:
+        transcript = os.path.join(project, "t.jsonl")
+        with open(transcript, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "user", "message": {"role": "user", "content": "hi"}}) + "\n")
+        start = time.monotonic()
+        run("stop_advisor_counter.py", project, {"session_id": "S1", "transcript_path": transcript,
+                                                 "cwd": project, "hook_event_name": "Stop"})
+        elapsed = time.monotonic() - start
+        check("no advisor in session: no wait", elapsed < 0.45, round(elapsed, 3))
+
+
 def test_permission_observer_keeps_no_command_line():
     with tempfile.TemporaryDirectory() as project:
         secret = "FAKE_SECRET_VALUE_1234567890"
@@ -163,6 +208,8 @@ def test_keys_from_review():
         "cd x": "Bash:cd",
         "pushd a; FOO=1 npm test": "Bash:npm",
         "sudo rm -rf x": "Bash:sudo",
+        "printf 'msg' > /tmp/m && git add . && git commit -F /tmp/m": "Bash:git",
+        "echo hi": "Bash:echo",
     }
     for cmd, want in cases.items():
         got = po.prompt_key("Bash", {"command": cmd})

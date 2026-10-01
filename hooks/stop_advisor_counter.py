@@ -13,18 +13,32 @@ event per call id not recorded yet. When the session's count crosses a
 multiple of `CCEVOLVE_ADVISOR_NOTIFY_AT` (default 3), it shows the user one
 `systemMessage`. It never blocks the stop.
 
-The transcript is written asynchronously, so a call from the last turn may be
-counted at the next stop. Fail-open: any error exits 0 without output.
+The transcript is written asynchronously: the lines of the turn's last
+assistant message can land a few milliseconds after Stop hooks start, so a call
+made in the last turn can be missed at that Stop (seen on a real session). Three
+measures cover it:
+
+- the next Stop reads the transcript again (ids already recorded are skipped);
+- the same script also runs on SessionEnd, so a call in the final turn of a
+  session is still recorded (no notice is shown there);
+- in a session that has already used the advisor, when nothing new is found
+  and the transcript was modified under `RECENT_WRITE_S` ago, the hook waits
+  `RETRY_WAIT_S` once and reads again. Sessions without the advisor never wait.
+
+Fail-open: any error exits 0 without output.
 """
 
 import json
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lib import ledger  # noqa: E402
 
 DEFAULT_NOTIFY_AT = 3
+RECENT_WRITE_S = 2.0
+RETRY_WAIT_S = 0.5
 
 
 def advisor_call_ids(transcript_path: str) -> list:
@@ -74,7 +88,17 @@ def main() -> None:
 
     path = ledger.ledger_path(payload.get("cwd") or os.getcwd())
     seen = ledger.recorded_ids(path, "advisor_call")
-    new_ids = [i for i in advisor_call_ids(transcript) if i not in seen]
+    all_ids = advisor_call_ids(transcript)
+    new_ids = [i for i in all_ids if i not in seen]
+    if not new_ids and all_ids:
+        # An advisor session whose last message may still be in flight.
+        try:
+            fresh = time.time() - os.path.getmtime(transcript) < RECENT_WRITE_S
+        except OSError:
+            fresh = False
+        if fresh:
+            time.sleep(RETRY_WAIT_S)
+            new_ids = [i for i in advisor_call_ids(transcript) if i not in seen]
     if not new_ids:
         return
 
@@ -82,6 +106,8 @@ def main() -> None:
     written = sum(ledger.append(path, session_id, "advisor_call", "advisor", event_id=i) for i in new_ids)
     after = before + written
 
+    if payload.get("hook_event_name") == "SessionEnd":
+        return  # the session is ending; record only
     step = notify_at(os.environ)
     if after // step > before // step:
         print(json.dumps({"systemMessage": (

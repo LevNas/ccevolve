@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1
+
+Fixes from the first live check with `claude --advisor fable` (Opus 5.5 main, Fable 5.1 advisor).
+
+- **Advisor counter missed the call at the Stop of the same turn.** The transcript is written asynchronously: the turn's last assistant message, which held the advisor call, landed about 50 ms after Stop hooks started, so the hook read a transcript without it (the next Stop would have counted it; a session that ended there never would). Now the same script also runs on `SessionEnd` (records only, no notice), and in a session that has already used the advisor, when nothing new is found and the transcript changed under 2 s ago, the Stop hook waits 0.5 s once and reads again. Sessions without the advisor never wait.
+- **Permission key for compound commands**: `printf msg > f && git add . && git commit -F f` was keyed `Bash:printf`; harmless programs (`printf`, `echo`, `true`, `sleep`, `test`, `pwd`, `date` …) are now skipped when another program is present, so it is `Bash:git`.
+- Confirmed live: the transcript stores the call as `server_tool_use` named `advisor` and the result as `advisor_tool_result` with an `advisor_redacted_result` (encrypted) body, as the parser assumed; `PostToolUseFailure` and `PermissionRequest` events reached the ledger.
+- `tests/test_ccevolve.py`: 35 checks (late write caught by retry, no wait without the advisor, SessionEnd records without notice, compound-command keys).
+
 ## 0.2.0
 
 Ledger of recurring judgments and promotion from prose to computation (#3).
