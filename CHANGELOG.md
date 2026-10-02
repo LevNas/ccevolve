@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2
+
+- **Advisor counter retry**: 0.2.1 retried only when the first read found nothing new. In a session where an earlier call had been missed at its own Stop, the next Stop found that older call as new, skipped the retry, and missed the call of the current turn again. The retry now runs in every advisor session whose transcript changed under 2 s ago, whatever the first read found. Sessions without the advisor still never wait. Test: 36 checks.
+
 ## 0.2.1
 
 Fixes from the first live check with `claude --advisor fable` (Opus 5.5 main, Fable 5.1 advisor).
