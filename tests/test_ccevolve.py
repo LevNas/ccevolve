@@ -160,6 +160,33 @@ def test_advisor_late_write_caught_even_when_an_older_call_is_new():
         check("late write with an older unrecorded call: both recorded", ids == ["srvtoolu_000", "srvtoolu_001"], ids)
 
 
+def test_advisor_waits_for_last_message_despite_old_mtime():
+    """Live shape: no write during the advisor's ~36 s consult, so mtime is old when Stop starts;
+    the final message (with the call) lands after the hook started."""
+    with tempfile.TemporaryDirectory() as project:
+        transcript = os.path.join(project, "t.jsonl")
+        write_transcript(transcript, 1)  # srvtoolu_000 from an earlier turn
+        old = time.time() - 40
+        os.utime(transcript, (old, old))
+        env = {k: v for k, v in os.environ.items() if not k.startswith("CCEVOLVE_")}
+        env["CLAUDE_PROJECT_DIR"] = project
+        proc = subprocess.Popen([sys.executable, os.path.join(HOOKS, "stop_advisor_counter.py")],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+        proc.stdin.write(json.dumps({"session_id": "S1", "transcript_path": transcript, "cwd": project,
+                                     "hook_event_name": "Stop", "last_assistant_message": "final answer here"}))
+        proc.stdin.close()
+        time.sleep(0.4)
+        with open(transcript, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "server_tool_use", "id": "srvtoolu_009", "name": "advisor", "input": {}}]}}) + "\n")
+            f.write(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
+                {"type": "text", "text": "final answer here"}]}}) + "\n")
+        proc.wait(timeout=10)
+        ids = sorted(e["id"] for e in events(project) if e["kind"] == "advisor_call")
+        check("old mtime: waits for the last message and records its call",
+              ids == ["srvtoolu_000", "srvtoolu_009"], ids)
+
+
 def test_advisor_no_wait_without_advisor():
     with tempfile.TemporaryDirectory() as project:
         transcript = os.path.join(project, "t.jsonl")

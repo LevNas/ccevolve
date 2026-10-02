@@ -13,18 +13,24 @@ event per call id not recorded yet. When the session's count crosses a
 multiple of `CCEVOLVE_ADVISOR_NOTIFY_AT` (default 3), it shows the user one
 `systemMessage`. It never blocks the stop.
 
-The transcript is written asynchronously: the lines of the turn's last
-assistant message can land a few milliseconds after Stop hooks start, so a call
-made in the last turn can be missed at that Stop (seen on a real session). Three
-measures cover it:
+The transcript is written asynchronously. On a live session the turn's last
+assistant message — the one holding the advisor call — was written in one go
+when the advisor's ~36 s consult ended, a few milliseconds after Stop hooks
+started; nothing was written during the consult, so the file's mtime was old
+and cannot tell "still being written". Three measures cover it:
 
+- in a session that has used the advisor, the Stop hook waits until the
+  transcript's last assistant text ends like the Stop input's
+  `last_assistant_message` (polling every `POLL_S`, at most `MAX_WAIT_S`; a
+  fixed `FALLBACK_WAIT_S` when that field is empty), then reads. Usually the
+  message is already there and nothing is waited. Sessions without the advisor
+  never wait;
 - the next Stop reads the transcript again (ids already recorded are skipped);
 - the same script also runs on SessionEnd, so a call in the final turn of a
-  session is still recorded (no notice is shown there);
-- in a session that has already used the advisor, when the transcript was
-  modified under `RECENT_WRITE_S` ago, the hook waits `RETRY_WAIT_S` once and
-  reads again, whatever the first read found. Sessions without the advisor
-  never wait.
+  session is still recorded (no notice is shown there).
+
+A call is counted from its `server_tool_use` block; a call without a matching
+`advisor_tool_result` (an interrupted consult) still counts as one attempt.
 
 Fail-open: any error exits 0 without output.
 """
@@ -38,8 +44,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lib import ledger  # noqa: E402
 
 DEFAULT_NOTIFY_AT = 3
-RECENT_WRITE_S = 2.0
-RETRY_WAIT_S = 0.5
+MAX_WAIT_S = 2.0
+POLL_S = 0.1
+FALLBACK_WAIT_S = 0.5
+TAIL_BYTES = 256 * 1024
+MATCH_CHARS = 60
 
 
 def advisor_call_ids(transcript_path: str) -> list:
@@ -67,6 +76,47 @@ def advisor_call_ids(transcript_path: str) -> list:
     return ids
 
 
+def last_assistant_text(transcript_path: str) -> str:
+    """Text of the last assistant text block in the transcript's tail, or ""."""
+    try:
+        with open(transcript_path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - TAIL_BYTES))
+            lines = f.read().decode("utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    for line in reversed(lines):
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict) or entry.get("type") != "assistant":
+            continue
+        message = entry.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, list):
+            texts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+            if any(t.strip() for t in texts):
+                return "".join(texts)
+    return ""
+
+
+def wait_for_last_message(transcript_path: str, expected: str) -> bool:
+    """Wait until the transcript's last assistant text ends like `expected`."""
+    want = (expected or "").strip()[-MATCH_CHARS:]
+    if not want:
+        time.sleep(FALLBACK_WAIT_S)
+        return False
+    deadline = time.monotonic() + MAX_WAIT_S
+    while True:
+        if last_assistant_text(transcript_path).strip().endswith(want):
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(POLL_S)
+
+
 def notify_at(env) -> int:
     try:
         value = int(env.get("CCEVOLVE_ADVISOR_NOTIFY_AT", DEFAULT_NOTIFY_AT))
@@ -90,18 +140,11 @@ def main() -> None:
     path = ledger.ledger_path(payload.get("cwd") or os.getcwd())
     seen = ledger.recorded_ids(path, "advisor_call")
     all_ids = advisor_call_ids(transcript)
-    if all_ids:
-        # An advisor session whose last message may still be in flight: read
-        # once more after a short wait, whether or not the first read found
-        # something new (an older call missed at its own Stop is not the
-        # call of this turn).
-        try:
-            fresh = time.time() - os.path.getmtime(transcript) < RECENT_WRITE_S
-        except OSError:
-            fresh = False
-        if fresh:
-            time.sleep(RETRY_WAIT_S)
-            all_ids = advisor_call_ids(transcript)
+    if all_ids and payload.get("hook_event_name") != "SessionEnd":
+        # An advisor session: the turn's last message may not be written yet.
+        # Wait for it, then read again, whatever the first read found.
+        wait_for_last_message(transcript, payload.get("last_assistant_message") or "")
+        all_ids = advisor_call_ids(transcript)
     new_ids = [i for i in all_ids if i not in seen]
     if not new_ids:
         return
