@@ -141,6 +141,25 @@ def test_advisor_late_write_is_caught_by_retry():
         check("late write: the in-flight call is recorded on retry", ids == ["srvtoolu_000", "srvtoolu_001"], ids)
 
 
+def test_advisor_late_write_caught_even_when_an_older_call_is_new():
+    """An earlier call missed at its own Stop must not stop the retry for the call now in flight."""
+    with tempfile.TemporaryDirectory() as project:
+        transcript = os.path.join(project, "t.jsonl")
+        write_transcript(transcript, 1)  # srvtoolu_000: in the transcript, never recorded
+        env = {k: v for k, v in os.environ.items() if not k.startswith("CCEVOLVE_")}
+        env["CLAUDE_PROJECT_DIR"] = project
+        proc = subprocess.Popen([sys.executable, os.path.join(HOOKS, "stop_advisor_counter.py")],
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env)
+        proc.stdin.write(json.dumps({"session_id": "S1", "transcript_path": transcript, "cwd": project,
+                                     "hook_event_name": "Stop"}))
+        proc.stdin.close()
+        time.sleep(0.2)
+        write_transcript(transcript, 1, start=1)  # srvtoolu_001 lands while the hook runs
+        proc.wait(timeout=10)
+        ids = sorted(e["id"] for e in events(project) if e["kind"] == "advisor_call")
+        check("late write with an older unrecorded call: both recorded", ids == ["srvtoolu_000", "srvtoolu_001"], ids)
+
+
 def test_advisor_no_wait_without_advisor():
     with tempfile.TemporaryDirectory() as project:
         transcript = os.path.join(project, "t.jsonl")

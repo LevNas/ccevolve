@@ -21,9 +21,10 @@ measures cover it:
 - the next Stop reads the transcript again (ids already recorded are skipped);
 - the same script also runs on SessionEnd, so a call in the final turn of a
   session is still recorded (no notice is shown there);
-- in a session that has already used the advisor, when nothing new is found
-  and the transcript was modified under `RECENT_WRITE_S` ago, the hook waits
-  `RETRY_WAIT_S` once and reads again. Sessions without the advisor never wait.
+- in a session that has already used the advisor, when the transcript was
+  modified under `RECENT_WRITE_S` ago, the hook waits `RETRY_WAIT_S` once and
+  reads again, whatever the first read found. Sessions without the advisor
+  never wait.
 
 Fail-open: any error exits 0 without output.
 """
@@ -89,16 +90,19 @@ def main() -> None:
     path = ledger.ledger_path(payload.get("cwd") or os.getcwd())
     seen = ledger.recorded_ids(path, "advisor_call")
     all_ids = advisor_call_ids(transcript)
-    new_ids = [i for i in all_ids if i not in seen]
-    if not new_ids and all_ids:
-        # An advisor session whose last message may still be in flight.
+    if all_ids:
+        # An advisor session whose last message may still be in flight: read
+        # once more after a short wait, whether or not the first read found
+        # something new (an older call missed at its own Stop is not the
+        # call of this turn).
         try:
             fresh = time.time() - os.path.getmtime(transcript) < RECENT_WRITE_S
         except OSError:
             fresh = False
         if fresh:
             time.sleep(RETRY_WAIT_S)
-            new_ids = [i for i in advisor_call_ids(transcript) if i not in seen]
+            all_ids = advisor_call_ids(transcript)
+    new_ids = [i for i in all_ids if i not in seen]
     if not new_ids:
         return
 
