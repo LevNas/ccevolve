@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- **Advisor counter waits for the turn's last message instead of guessing from mtime.** Second live check (two advisor calls in one turn): the message holding the second call was written in one go when the ~36 s consult ended, a few milliseconds after Stop hooks started, and nothing was written during the consult, so the transcript's mtime was 36 s old and 0.2.2 decided it was not being written. In advisor sessions the Stop hook now waits until the transcript's last assistant text ends like the Stop input's `last_assistant_message` (polls every 0.1 s, at most 2 s; 0.5 s when that field is empty). The message is usually already there, so nothing is waited. Sessions without the advisor never wait.
+- A `server_tool_use` advisor call without a matching `advisor_tool_result` (seen once live, an interrupted consult) counts as one attempt.
+- Test: 37 checks, including the live shape (old mtime, last message landing after the hook started).
+
 ## 0.2.2
 
 - **Advisor counter retry**: 0.2.1 retried only when the first read found nothing new. In a session where an earlier call had been missed at its own Stop, the next Stop found that older call as new, skipped the retry, and missed the call of the current turn again. The retry now runs in every advisor session whose transcript changed under 2 s ago, whatever the first read found. Sessions without the advisor still never wait. Test: 36 checks.
