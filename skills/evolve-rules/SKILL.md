@@ -77,7 +77,7 @@ The reason this rule exists (incident, best practice, etc.).
 1. Read the existing rule file
 2. Show the user the file and the change you will make, and get the user's approval
 3. Apply the approved changes
-4. If the rule is no longer relevant, explain why, get the user's approval, and add `**Status: deprecated**` at the top rather than deleting
+4. If the rule is no longer relevant, explain why, get the user's approval, and add `**Status: deprecated**` rather than deleting: in a rule with frontmatter, right after the closing `---` of the frontmatter; otherwise, at the top of the file
 
 ## Approval
 
