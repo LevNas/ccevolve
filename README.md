@@ -11,7 +11,7 @@ Claude Code starts every session with a blank slate. Mistakes are repeated, good
 ccevolve provides the **framework** for continuous improvement:
 
 - **Ledger of recurring judgments** — tool failures, permission prompts and advisor calls recorded as structured events, counted, and proposed for promotion from prose to computation (a hook, lint rule, test or permission rule)
-- **Domain Rules Management** — organize rules in `.claude/rules/` to keep CLAUDE.md lean, written only after the user approves
+- **Domain Rules Management** — organize rules in `.claude/rules/`, written only after the user approves. A rule without `paths:` frontmatter loads in every session like CLAUDE.md; `/evolve-rules` recommends `paths:` globs so a rule loads only when Claude works with matching files
 
 The plugin provides the *mechanism*. Concrete rules and knowledge accumulate in **your project**, not in the plugin.
 
@@ -33,9 +33,9 @@ The plugin provides the *mechanism*. Concrete rules and knowledge accumulate in 
 ### What the plugin does not ship
 A Claude Code plugin can carry skills, agents, hooks, MCP and LSP servers, monitors, `bin/` executables and settings. It cannot carry a `CLAUDE.md` or rules that load into every session (see the [plugins reference](https://code.claude.com/docs/en/plugins-reference.md) and [memory](https://code.claude.com/docs/en/memory.md)). So ccevolve ships hooks and skills only.
 
-Guidance you want read in every session (search the knowledge base before starting work, when to propose a rule) belongs in your repository's own `CLAUDE.md` or `.claude/rules/`. `/evolve-rules` creates `.claude/rules/<domain>/` when it adds the first rule, so no separate setup step is needed.
+Guidance you want read in every session (search the knowledge base before starting work, when to propose a rule) belongs in your repository's own `CLAUDE.md` or `.claude/rules/`. `/evolve-rules` creates `.claude/rules/<domain>/` when it writes the first approved rule, so no separate setup step is needed.
 
-Upgrading from 0.2.x: the plugin's `CLAUDE.md` was never loaded, so no behavior stops with this version. If you want a flow such as searching the knowledge base before work to apply in every session, write it in your repository's `CLAUDE.md` or `.claude/rules/`.
+Upgrading from 0.2.x: see the 0.3.0 entry in [CHANGELOG.md](CHANGELOG.md).
 
 ### Ledger hooks
 
@@ -72,14 +72,15 @@ Propose prevention in your repository:
     ↓
 User approves → the change is written to your repository
     ↓
-Later sessions read it from your repository, not from the plugin
+The next session loads that CLAUDE.md, rule or hook from your
+repository; the plugin itself only observes and proposes
 ```
 
 ## Relationship with ccmemo
 
 | | ccmemo | ccevolve |
 |---|---|---|
-| **Focus** | Knowledge & task persistence | Behavior improvement workflow |
+| **Focus** | Knowledge & task persistence | Observing recurring judgments and proposing rules, hooks and checks for your repository |
 | **Writes to** | `.claude/knowledge/`, `.claude/tasks/` | `.claude/rules/` (`/evolve-rules`, after approval), `.claude/ledger/events.jsonl` |
 | **Skills** | `/record-knowledge`, `/plan-task`, `/review-knowledge` | `/evolve-rules`, `/promote-to-computation` |
 | **Hooks** | Context capture, compaction guard | Error detector, permission observer, advisor counter (ledger) |
@@ -101,10 +102,11 @@ ccevolve follows the LevNas plugin conventions maintained in [claudecode-plugins
 | `scripts/` | `ledger_report.py` (read-only counts and candidates) | Claude Code, humans |
 | `tests/` | `python3 tests/test_ccevolve.py` (hooks run as subprocesses against a throwaway project) | Contributors |
 
-Run the tests and the central linter from claudecode-plugins before sending a PR:
+Run the tests and the central linter before sending a PR. The linter is `scripts/lint-skills.sh` in [LevNas/claudecode-plugins](https://github.com/LevNas/claudecode-plugins); run it from your clone and pass the path of this repository:
 
 ```bash
-bash ~/src/github.com/LevNas/claudecode-plugins/scripts/lint-skills.sh ~/src/github.com/LevNas/ccevolve
+python3 tests/test_ccevolve.py
+bash <claudecode-plugins>/scripts/lint-skills.sh <path-to-ccevolve>
 ```
 
 ## License

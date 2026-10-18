@@ -11,9 +11,11 @@ This file is not shipped with the plugin. Only sessions working inside this repo
 
 ## Checks before a PR
 
+The linter is `scripts/lint-skills.sh` in LevNas/claudecode-plugins. Run it from your clone of that repository and pass the path of this one:
+
 ```bash
 python3 tests/test_ccevolve.py
-bash ~/src/github.com/LevNas/claudecode-plugins/scripts/lint-skills.sh .
+bash <claudecode-plugins>/scripts/lint-skills.sh <path-to-ccevolve>
 ```
 
 ## Releasing

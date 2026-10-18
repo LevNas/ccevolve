@@ -13,8 +13,10 @@ allowed-tools: Read, Grep, Glob
 # Evolve Rules
 
 ## Goal
-Manage `.claude/rules/` — the domain-specific rule directory that keeps CLAUDE.md lean
-while providing targeted guidance for specific products, platforms, or workflows.
+Manage `.claude/rules/` — domain-specific rules for products, platforms, or workflows,
+kept out of CLAUDE.md. A rule file without `paths:` frontmatter loads in every session,
+like CLAUDE.md; a rule with `paths:` loads only when Claude works with matching files,
+which keeps the always-on context small.
 
 ## When to Use
 - Adding a new rule after a self-improvement proposal
@@ -40,17 +42,24 @@ while providing targeted guidance for specific products, platforms, or workflows
 
 1. Glob `.claude/rules/**/*.md` to find all rule files
 2. For each file, read the first `#` heading and display as a summary table
-3. Skip `CLAUDE.md` (some repositories keep an index there; it is not a rule)
+3. Skip `CLAUDE.md` (it is not a rule)
 
 ### Add Rule
 
-1. Determine the domain subdirectory (e.g., `microsoft/`, `linux/`, `docker/`)
-2. Create `.claude/rules/<domain>/` if it doesn't exist (this also creates `.claude/rules/`; no separate setup step is needed)
-3. Show the user which file you will create and its full content, and get the user's approval
-4. Create `general.md` (or a more specific filename) with the approved content
+1. Choose the domain directory and the file name:
+   - Domain directory: the product or area name, lowercase, hyphen-separated (e.g., `microsoft/`, `linux/`, `docker/`)
+   - File name: `general.md`, or a specific topic name (e.g., `package-manager.md`)
+2. Unless the rule must apply in every session, add `paths:` frontmatter with globs for the domain's files. Without `paths:`, the rule loads in every session; with it, the rule loads only when Claude works with matching files.
+3. Show the user the file path and its full content, and get the user's approval
+4. After approval, write the file; this also creates `.claude/rules/<domain>/` if it is missing. If the user declines, create nothing.
 5. Format:
 
 ```markdown
+---
+paths:
+  - "**/*.ps1"
+---
+
 # Rule Title
 
 ## When
