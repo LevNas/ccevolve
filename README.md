@@ -33,7 +33,9 @@ The plugin provides the *mechanism*. Concrete rules and knowledge accumulate in 
 ### What the plugin does not ship
 A Claude Code plugin can carry skills, agents, hooks, MCP and LSP servers, monitors, `bin/` executables and settings. It cannot carry a `CLAUDE.md` or rules that load into every session (see the [plugins reference](https://code.claude.com/docs/en/plugins-reference.md) and [memory](https://code.claude.com/docs/en/memory.md)). So ccevolve ships hooks and skills only.
 
-Guidance you want read in every session (search the knowledge base before starting work, when to propose a rule) belongs in your repository's own `CLAUDE.md` or `.claude/rules/`. The ccharness plugin's scaffold writes these, if installed.
+Guidance you want read in every session (search the knowledge base before starting work, when to propose a rule) belongs in your repository's own `CLAUDE.md` or `.claude/rules/`. `/evolve-rules` creates `.claude/rules/<domain>/` when it adds the first rule, so no separate setup step is needed.
+
+Upgrading from 0.2.x: the plugin's `CLAUDE.md` was never loaded, so no behavior stops with this version. If you want a flow such as searching the knowledge base before work to apply in every session, write it in your repository's `CLAUDE.md` or `.claude/rules/`.
 
 ### Ledger hooks
 
