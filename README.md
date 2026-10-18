@@ -10,10 +10,8 @@ Claude Code starts every session with a blank slate. Mistakes are repeated, good
 
 ccevolve provides the **framework** for continuous improvement:
 
-- **Knowledge-First Flow** — search existing knowledge before starting work
 - **Ledger of recurring judgments** — tool failures, permission prompts and advisor calls recorded as structured events, counted, and proposed for promotion from prose to computation (a hook, lint rule, test or permission rule)
-- **Domain Rules Management** — organize rules in `.claude/rules/` to keep CLAUDE.md lean
-- **Feedback Recording** — persist user corrections and validated approaches
+- **Domain Rules Management** — organize rules in `.claude/rules/` to keep CLAUDE.md lean, written only after the user approves
 
 The plugin provides the *mechanism*. Concrete rules and knowledge accumulate in **your project**, not in the plugin.
 
@@ -32,11 +30,10 @@ The plugin provides the *mechanism*. Concrete rules and knowledge accumulate in 
 
 ## What You Get
 
-### Plugin CLAUDE.md (auto-loaded)
-Defines the self-improvement workflow:
-- When and how to search knowledge
-- When to propose new rules
-- Where to record different types of improvements
+### What the plugin does not ship
+A Claude Code plugin can carry skills, agents, hooks, MCP and LSP servers, monitors, `bin/` executables and settings. It cannot carry a `CLAUDE.md` or rules that load into every session (see the [plugins reference](https://code.claude.com/docs/en/plugins-reference.md) and [memory](https://code.claude.com/docs/en/memory.md)). So ccevolve ships hooks and skills only.
+
+Guidance you want read in every session (search the knowledge base before starting work, when to propose a rule) belongs in your repository's own `CLAUDE.md` or `.claude/rules/`. The ccharness plugin's scaffold writes these, if installed.
 
 ### Ledger hooks
 
@@ -55,22 +52,25 @@ Runs `scripts/ledger_report.py` (counts by kind and key over a window, candidate
 
 ### Skill: `/evolve-rules`
 Manages `.claude/rules/` directory:
-- `init` — set up the rules directory with conventions
 - List existing rules
-- Add/update domain-specific rules
+- Add/update/deprecate domain-specific rules
+- Shows the file and the text first, and writes only after the user approves
 
 ## How It Works
 
 ```
-Error or inefficiency during work
+Error, permission prompt or advisor call during work
     ↓
-Analyze root cause
+Hooks record it in the ledger (.claude/ledger/events.jsonl)
     ↓
-Propose prevention (CLAUDE.md / .claude/rules/ / knowledge / memory)
+Analyze the recurring ones (/promote-to-computation)
     ↓
-User approves → persist the improvement
+Propose prevention in your repository:
+  CLAUDE.md / .claude/rules/ / knowledge / a hook or check
     ↓
-Next session auto-applies it
+User approves → the change is written to your repository
+    ↓
+Later sessions read it from your repository, not from the plugin
 ```
 
 ## Relationship with ccmemo
@@ -78,9 +78,9 @@ Next session auto-applies it
 | | ccmemo | ccevolve |
 |---|---|---|
 | **Focus** | Knowledge & task persistence | Behavior improvement workflow |
-| **Writes to** | `.claude/knowledge/`, `.claude/tasks/` | `CLAUDE.md`, `.claude/rules/`, `memory/` |
-| **Skills** | `/record-knowledge`, `/plan-task`, `/review-knowledge` | `/evolve-rules` |
-| **Hooks** | Context capture, compaction guard | Error detection |
+| **Writes to** | `.claude/knowledge/`, `.claude/tasks/` | `.claude/rules/` (`/evolve-rules`, after approval), `.claude/ledger/events.jsonl` |
+| **Skills** | `/record-knowledge`, `/plan-task`, `/review-knowledge` | `/evolve-rules`, `/promote-to-computation` |
+| **Hooks** | Context capture, compaction guard | Error detector, permission observer, advisor counter (ledger) |
 
 They are complementary — ccmemo manages *what you know*, ccevolve manages *how you behave*.
 
@@ -91,7 +91,7 @@ ccevolve follows the LevNas plugin conventions maintained in [claudecode-plugins
 | Location | Purpose | Audience |
 |----------|---------|----------|
 | `README.md` | Plugin overview and usage | Users (humans) |
-| `CLAUDE.md` | Auto-loaded workflow definition | Claude Code |
+| `CLAUDE.md` | Notes for working on this repository; not loaded by the plugin | Contributors, Claude Code sessions in this repository |
 | `skills/<name>/SKILL.md` | Skill definition with required frontmatter (`name`/`description`/`license`/`allowed-tools`) | Claude Code |
 | `skills/<name>/references/` | Runtime reference resources | Claude Code |
 | `docs/` | Developer/operator internal docs | Contributors (humans) |

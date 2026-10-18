@@ -1,10 +1,11 @@
 ---
 name: evolve-rules
 description: >-
-  Manage domain-specific rules in .claude/rules/. List, add, update, or initialize
+  Manage domain-specific rules in .claude/rules/. List, add, update, or deprecate
   rules that guide Claude Code's behavior for specific products or domains
-  (e.g., PowerShell validation, Linux distro checks). Use when setting up a new
-  project's rule structure or when a self-improvement proposal targets .claude/rules/.
+  (e.g., PowerShell validation, Linux distro checks). Use when listing rules to
+  check coverage, adding or updating a rule, retiring an outdated one, or when a
+  self-improvement proposal targets .claude/rules/.
 license: MIT
 allowed-tools: Read, Grep, Glob, Edit, Write
 ---
@@ -16,25 +17,16 @@ Manage `.claude/rules/` — the domain-specific rule directory that keeps CLAUDE
 while providing targeted guidance for specific products, platforms, or workflows.
 
 ## When to Use
-- Setting up `.claude/rules/` for a new project (`/evolve-rules init`)
 - Adding a new rule after a self-improvement proposal
 - Listing existing rules to check coverage
 - Updating or deprecating an outdated rule
 
-## Setup
-
-Initialize the rules directory with a CLAUDE.md reference:
-
-```bash
-mkdir -p .claude/rules
-cp assets/rules-CLAUDE.md .claude/rules/CLAUDE.md
-```
+If `.claude/rules/` does not exist yet, use the ccharness plugin's scaffold if installed; otherwise create the directory by hand.
 
 ## Directory Structure
 
 ```
 .claude/rules/
-├── CLAUDE.md              ← Index and conventions (from template)
 ├── microsoft/
 │   └── general.md         ← PowerShell validation, Azure CLI conventions
 ├── linux/
@@ -50,7 +42,7 @@ cp assets/rules-CLAUDE.md .claude/rules/CLAUDE.md
 
 1. Glob `.claude/rules/**/*.md` to find all rule files
 2. For each file, read the first `#` heading and display as a summary table
-3. Skip `CLAUDE.md` (it's the index, not a rule)
+3. Skip `CLAUDE.md` (some repositories keep an index there; it is not a rule)
 
 ### Add Rule
 
@@ -78,13 +70,7 @@ The reason this rule exists (incident, best practice, etc.).
 2. Apply the requested changes
 3. If the rule is no longer relevant, add `**Status: deprecated**` at the top rather than deleting
 
-### Init
-
-1. Create `.claude/rules/` directory
-2. Copy `assets/rules-CLAUDE.md` to `.claude/rules/CLAUDE.md`
-3. Report the setup result
-
 ## Autonomous Behavior
 
-- When adding rules triggered by self-improvement proposals, act autonomously (don't ask for confirmation on file creation)
-- When deprecating rules, explain why and ask for confirmation
+- Before adding or updating a rule, including one from a self-improvement proposal, show which file you will write and what you will write in it, and write only after the user approves
+- Before deprecating a rule, explain why and ask for approval
