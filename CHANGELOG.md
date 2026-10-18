@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0
+
+### Removed
+
+- `/evolve-rules init` and its template (`skills/evolve-rules/assets/rules-CLAUDE.md`). Add Rule creates `.claude/rules/<domain>/` when it writes an approved rule and the directory is missing, so no separate setup step is needed. The naming conventions from the template (lowercase, hyphen-separated domain directories; `general.md` or a specific topic file) moved into Add Rule.
+
+### Fixed
+
+- README and `plugin.json` claimed the plugin's `CLAUDE.md` is auto-loaded and that the plugin enforces a Knowledge-First Flow. A plugin cannot ship a `CLAUDE.md` or rules, so neither was true; both now describe only the hooks and skills the plugin ships (#2).
+- README advertised "Knowledge-First Flow" and "Feedback Recording" (`memory/feedback_*.md`). Neither was shipped, so both are removed from the README.
+
+### Changed
+
+- `/evolve-rules` shows the file and the text before adding, updating or deprecating a rule, including one from a self-improvement proposal, and writes only after the user approves. Its `allowed-tools` is now `Read, Grep, Glob`: `Edit` and `Write` are no longer pre-approved, so unless the user's own settings (allow rules or auto mode) permit them, Claude Code asks before each write to a rule file. Where those settings do permit them, the skill's approval steps are the only safeguard.
+- `/evolve-rules` Add Rule recommends `paths:` frontmatter: a rule without it loads in every session, a rule with it loads only when Claude works with matching files.
+- `CLAUDE.md` is now a short guide for working on this repository.
+
+### Upgrading from 0.2.x
+
+- The plugin's `CLAUDE.md` was never loaded, so nothing it described stops working.
+- `/evolve-rules` no longer writes rules without approval. Before, it created rules from self-improvement proposals without asking; now it shows the file and content and writes only after the user approves.
+- To keep a flow such as searching the knowledge base before work in every session, write it in your repository's `CLAUDE.md` or `.claude/rules/`.
+
 ## 0.2.3
 
 - **Advisor counter waits for the turn's last message instead of guessing from mtime.** Second live check (two advisor calls in one turn): the message holding the second call was written in one go when the ~36 s consult ended, a few milliseconds after Stop hooks started, and nothing was written during the consult, so the transcript's mtime was 36 s old and 0.2.2 decided it was not being written. In advisor sessions the Stop hook now waits until the transcript's last assistant text ends like the Stop input's `last_assistant_message` (polls every 0.1 s, at most 2 s; 0.5 s when that field is empty). The message is usually already there, so nothing is waited. Sessions without the advisor never wait.

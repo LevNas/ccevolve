@@ -1,61 +1,24 @@
-# ccevolve — Self-Improving Workflow
+# ccevolve — notes for working on this repository
 
-セッションをまたいで行動品質を維持・向上させる仕組み。
-ルール・知見・フィードバックを構造化して永続化し、次回セッションで自動参照させる。
+This file is not shipped with the plugin. Only sessions working inside this repository read it.
 
-## Knowledge-First Flow
+## Layout
 
-すべての応答において：
-1. 作業開始前に `.claude/knowledge/entries/` で関連エントリを検索する
-2. 見つかれば、そのナレッジを基に応答する
-3. 見つからなければ、外部ソースに進む
-4. 不確かな場合は推測せず確認質問する
+- `hooks/` — hook scripts and `hooks.json`; `hooks/lib/ledger.py` is the shared ledger
+- `skills/` — `evolve-rules`, `promote-to-computation`
+- `scripts/` — `ledger_report.py` (read-only counts and candidates)
+- `tests/` — `test_ccevolve.py` (runs the hooks as subprocesses against a throwaway project)
 
-## 能動的自己改善
+## Checks before a PR
 
-作業中にエラー・非効率・予期しない動作が発生した場合、再発防止策を能動的に提案する。
+The linter is `scripts/lint-skills.sh` in LevNas/claudecode-plugins. Run it from your clone of that repository and pass the path of this one:
 
-### トリガー
-- 実行中にエラーや予期しない結果が発生した
-- 同じパターンのミスが2回以上観測された
-- セッション終了時にルールとして定着すべき教訓がある
-
-### 提案先
-- 行動ルール → CLAUDE.md への追加を提案
-- ユーザーからの修正指示 → `memory/feedback_*.md` に記録
-- 新しい知見 → `.claude/knowledge/entries/` にエントリ作成
-
-## 製品・領域別ルール
-
-`.claude/rules/` にサブディレクトリで配置し、CLAUDE.md の肥大化を防ぐ。
-関連作業時のみ参照する。
-
-```
-.claude/rules/
-├── microsoft/    ← PowerShell等の検証手順
-├── linux/        ← ディストリビューション確認手順
-└── ...
+```bash
+python3 tests/test_ccevolve.py
+bash <claudecode-plugins>/scripts/lint-skills.sh <path-to-ccevolve>
 ```
 
-ルールの管理には `/evolve-rules` スキルを使用する。
+## Releasing
 
-## フィードバック記録
-
-ユーザーからの修正指示（「それは違う」「やめて」等）を受けた場合：
-1. `memory/feedback_*.md` に記録する
-2. **Why:** と **How to apply:** を含め、判断の根拠を残す
-3. 修正だけでなく、うまくいったアプローチ（「それで正解」「いいね」等）も記録する
-
-## 改善サイクル
-
-```
-作業中にエラーや非効率が発生
-    ↓
-原因を分析
-    ↓
-再発防止策を提案（CLAUDE.md / memory / knowledge）
-    ↓
-ユーザーが承認 → ルール・知見を永続化
-    ↓
-次回セッションで自動適用
-```
+- When a PR changes hooks, skills or scripts, bump `version` in `.claude-plugin/plugin.json` in the same PR. The plugin cache is keyed by version, so without a bump the change does not reach users.
+- Update `README.md` and `CHANGELOG.md` in the same PR as the change they describe.
