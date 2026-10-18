@@ -73,4 +73,4 @@ The reason this rule exists (incident, best practice, etc.).
 ## Approval
 
 - Never add, update or deprecate a rule without the user's approval, including a rule from a self-improvement proposal
-- This skill does not pre-approve `Edit` or `Write`, so Claude Code asks the user before each write to a rule file
+- This skill does not pre-approve `Edit` or `Write`. Unless the user's own settings (allow rules or auto mode) permit them, Claude Code asks the user before each write to a rule file. If they do permit them, the approval steps above are the only safeguard

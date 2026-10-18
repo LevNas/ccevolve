@@ -13,7 +13,7 @@
 
 ### Changed
 
-- `/evolve-rules` shows the file and the text before adding, updating or deprecating a rule, including one from a self-improvement proposal, and writes only after the user approves. Its `allowed-tools` is now `Read, Grep, Glob`: `Edit` and `Write` are no longer pre-approved, so Claude Code asks before each write to a rule file.
+- `/evolve-rules` shows the file and the text before adding, updating or deprecating a rule, including one from a self-improvement proposal, and writes only after the user approves. Its `allowed-tools` is now `Read, Grep, Glob`: `Edit` and `Write` are no longer pre-approved, so unless the user's own settings (allow rules or auto mode) permit them, Claude Code asks before each write to a rule file. Where those settings do permit them, the skill's approval steps are the only safeguard.
 - `CLAUDE.md` is now a short guide for working on this repository.
 
 ### Upgrading from 0.2.x
