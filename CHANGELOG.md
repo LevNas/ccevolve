@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- `scripts/script_facts.py`: facts about the throwaway scripts Claude wrote, read from the Claude Code transcripts on this machine. A throwaway script is a `.py`/`.sh`/`.bash`/`.mjs`/`.js` file created under `/tmp/`, a `.claude/tmp/` folder or `~/.claude/jobs/<id>/tmp/`, by the Write tool, a heredoc, any other redirect (such as a `sed` copy of an earlier script), `cp` or `git show`. For each it gives the session, method, description, lines, runs and the paths passed to it, and writes the bodies the transcript holds to the output folder. The window is `--days`, else `CCEVOLVE_TRANSCRIPT_DAYS`, else 60 days. The output folder must be outside any git repository, and files in it are not counted.
+- `/promote-to-computation`: a section "Candidates from throwaway scripts" — run `script_facts.py`, group the scripts by purpose with a read-only subagent, report the groups seen in two or more sessions or run five or more times with a deletion test, a strength mark (Strong, Worth exploring, Speculative) and the recorded failure each would fix (a candidate with none stays Speculative), and stop for the user to pick one. The skill's description is unchanged.
+
 ## 0.3.0
 
 ### Removed

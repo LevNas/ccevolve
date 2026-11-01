@@ -28,6 +28,25 @@ Prose rules cost context every session and depend on the model reading them righ
 5. Present the proposals together. Do not apply any of them, and never write permission rules or settings yourself: changes that widen Claude's own permissions or instructions are the user's to make.
 6. Advisor calls: if one session shows many calls (`advisor calls per session`), suggest starting such sessions with `--advisor` only when needed, or timing guidance in CLAUDE.md.
 
+## Candidates from throwaway scripts
+
+A script Claude writes again and again in temporary places (a sed copy of last time's, with new constants) is a step that wants to be a plugin script. The ledger does not see these; the transcripts do.
+
+1. List the facts, with the output folder outside every git repository (the script refuses one inside: it copies script bodies out of the transcripts):
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/script_facts.py" --out <folder>
+   ```
+
+   The window is `--days N`, else `CCEVOLVE_TRANSCRIPT_DAYS`, else 60 days. Quote its first line in the report: it says how many days of transcripts there really were, on this machine only.
+2. Group the scripts by purpose with one read-only subagent (Read, Grep, Glob). Give it `facts.json` and the `scripts/` folder, and ask for groups with their grounds: which scripts, and which lines show the shared purpose. Names alone are not grounds. The grouping is the subagent's; what to propose is yours.
+3. Write the report yourself:
+   - Take only groups created in two or more sessions, or run five or more times.
+   - Deletion test: if this became one plugin script, would the complexity gather in one place, or only move?
+   - Mark each **Strong**, **Worth exploring** or **Speculative**, and name where it would live (which plugin or repository).
+   - Name the recorded failure it would fix: a knowledge-base entry (with ccmemo installed), an issue or a PR. A candidate with no such record stays **Speculative**. If every candidate is Speculative, say there is nothing to promote.
+4. Stop at the report and let the user pick one, or none. Build nothing before that.
+
 ## Retiring
 
 A check that never fires is also a candidate: propose deleting it with the evidence (no matching events over a long window). Keep the ledger window long enough (90 days or more) before calling a check dead.
