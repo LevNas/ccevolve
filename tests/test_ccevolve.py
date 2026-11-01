@@ -303,7 +303,9 @@ def facts_transcripts(projects, out_dir):
          row(1, bash("cat > /tmp/ccx-fixture/hd.sh <<'EOF'\n# heredoc script\necho hi\nEOF")),
          row(1, bash("python3 /tmp/ccx-fixture/gen.py --in /abs/data.json")),
          row(1, bash("python3 ~/.claude/plugins/other/gen.py")),  # same name, another script: not a run
-         row(1, write(os.path.join(out_dir, "scripts", "s0000-gen.py"), "print(0)\n"))]  # the tool's own output
+         row(1, write(os.path.join(out_dir, "scripts", "s0000-gen.py"), "print(0)\n")),  # the tool's own output
+         # a here-string and a shift are not heredocs: the redirect after them must still be found
+         row(1, bash("python3 /tmp/ccx-fixture/gen.py <<< \"$x\"; echo $((1<<3))\nsed 's/1/3/' /tmp/ccx-fixture/gen.py > /tmp/ccx-fixture/after.py"))]
     b = [row(10, write("/tmp/ccx-fixture/old.py", "# an older script\n"))]
     for name, rows in (("aaaaaaaa-0000-0000-0000-000000000001", a), ("bbbbbbbb-0000-0000-0000-000000000002", b)):
         d = os.path.join(projects, "-proj")
@@ -338,13 +340,17 @@ def test_script_facts():
         check("facts: the tool's own output is not counted", "s0000-gen.py" not in rows, sorted(rows))
         check("facts: description from the docstring", rows.get("gen.py", {}).get("description") == "Generate the fixture.", rows.get("gen.py"))
         gen = rows.get("gen.py", {})
-        check("facts: a run counts, a same-named script elsewhere does not", gen.get("runs") == 1, gen)
+        check("facts: runs count, a same-named script elsewhere does not", gen.get("runs") == 2, gen)
         check("facts: argument paths kept", gen.get("arg_paths") == ["/abs/data.json"], gen)
         sdir = os.path.join(out_dir, "scripts")
         bodies = sorted(os.listdir(sdir)) if os.path.isdir(sdir) else []
         check("facts: bodies saved for write and heredoc only",
               any(b.endswith("-gen.py") for b in bodies) and any(b.endswith("-hd.sh") for b in bodies)
               and not any(b.endswith("-copy.py") for b in bodies), bodies)
+        check("facts: a here-string or shift does not hide later lines", rows.get("after.py", {}).get("methods") == ["redirect"], sorted(rows))
+        mode = lambda p: oct(os.stat(p).st_mode & 0o777)
+        check("facts: bodies are readable by the owner only",
+              all(mode(os.path.join(sdir, b)) == "0o600" for b in bodies) and bodies, [mode(os.path.join(sdir, b)) for b in bodies])
         first = proc.stdout.splitlines()[0] if proc.stdout else ""
         oldest = (datetime.now(timezone.utc) - timedelta(days=10)).date().isoformat()
         check("facts: the window line comes first", first.startswith("Window:") and "60 days" in first and oldest in first, first)

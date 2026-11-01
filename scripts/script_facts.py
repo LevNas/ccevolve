@@ -12,7 +12,7 @@ A throwaway script is a .py/.sh/.bash/.mjs/.js file created under /tmp/, a `.cla
   git-show  git show rev:path > file (a snapshot of real code, not authored)
 
 For each script: session, path, methods, creation time, description (docstring or first comment), lines,
-runs (later Bash calls in the same session that run it from its own folder), and the paths passed to it.
+runs (other Bash calls in the same session that run it from its own folder, in any order), and the paths passed to it.
 Bodies the transcript holds (write, heredoc) are written to DIR/scripts/<id>-<name>, and the facts to
 DIR/facts.json. Facts only: grouping scripts by purpose is left to a reader (see the
 promote-to-computation skill).
@@ -20,6 +20,7 @@ promote-to-computation skill).
 The window is --days, else CCEVOLVE_TRANSCRIPT_DAYS, else 60 days. Files under DIR are not counted, so a
 second run does not count the first run's output. DIR must be outside any git repository: the bodies are
 copied from transcripts and may hold anything a session wrote, so they must not be committed by accident.
+For the same reason a new DIR is made readable by its owner only, and every file written is mode 0600.
 Exit 2 on a bad argument or variable.
 """
 
@@ -70,16 +71,16 @@ def creations(cmd):
     while i < len(lines):
         stmt = lines[i]
         body = None
-        hd = re.search(r"<<-?\s*['\"]?(\w+)['\"]?", stmt)
+        # `<<WORD`, not a here-string (`<<<`) or a shift (`1<<3`); a delimiter that never comes is no heredoc
+        hd = re.search(r"(?<!<)<<(?!<)-?\s*['\"]?([A-Za-z_]\w*)['\"]?", stmt)
         if hd:  # keep the heredoc body with its statement
             delim = hd.group(1)
             j = i + 1
-            buf = []
             while j < len(lines) and lines[j].strip() != delim:
-                buf.append(lines[j])
                 j += 1
-            body = "\n".join(buf)
-            i = j
+            if j < len(lines):
+                body = "\n".join(lines[i + 1:j])
+                i = j
         for part in re.split(r"&&|;|\|\|", stmt):
             part = part.strip()
             m = re.match(r"^(?:export\s+)?(\w+)=(\S+)$", part)
@@ -146,7 +147,11 @@ def repo_root(path):
     while not os.path.isdir(d):
         d = os.path.dirname(d)
     r = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=d, capture_output=True, text=True)
-    return r.stdout.strip() if r.returncode == 0 else None
+    if r.returncode == 0:
+        return r.stdout.strip()
+    if "not a git repository" in r.stderr:
+        return None
+    raise ValueError(f"cannot tell whether --out is inside a git repository: {r.stderr.strip()[:200]}")
 
 
 def collect(projects, cutoff, methods, out_dir):
@@ -210,8 +215,9 @@ def collect(projects, cutoff, methods, out_dir):
 
 
 def count_runs(f, commands):
-    """Later Bash calls in the same session that run the script from its own folder (a plugin's script with
-    the same name does not count), and the paths passed to it."""
+    """Bash calls in the same session that run the script from its own folder, other than the calls that
+    create it (a plugin's script with the same name does not count), and the paths passed to it. Order is not
+    checked: a run before the script was rewritten at the same path counts too."""
     base, folder = f["basename"], os.path.dirname(f["path"])
     pat = re.compile(r"(?<![\w.-])" + re.escape(base) + r"(?![\w.-])")
     runs, argpaths = 0, collections.Counter()
@@ -232,6 +238,13 @@ def count_runs(f, commands):
             argpaths[UUID.sub("<uuid>", tok)] += 1
     f["runs"] = runs
     f["arg_paths"] = [p for p, _ in argpaths.most_common(5)]
+
+
+def private(path):
+    """Open path for writing as mode 0600, also when it already exists."""
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    return os.fdopen(fd, "w", encoding="utf-8")
 
 
 def main(argv=None):
@@ -258,15 +271,16 @@ def main(argv=None):
 
     now = dt.datetime.now(dt.timezone.utc)
     scripts, oldest, files_read = collect(a.projects, now - dt.timedelta(days=days), methods, a.out)
-    os.makedirs(os.path.join(a.out, "scripts"), exist_ok=True)
+    os.makedirs(a.out, mode=0o700, exist_ok=True)
+    os.makedirs(os.path.join(a.out, "scripts"), mode=0o700, exist_ok=True)
     rows = []
     for i, f in enumerate(sorted(scripts.values(), key=lambda f: f["created"])):
         sid = f"s{i:04d}"
         if f["body"]:
-            with open(os.path.join(a.out, "scripts", f"{sid}-{f['basename']}"), "w", encoding="utf-8") as w:
+            with private(os.path.join(a.out, "scripts", f"{sid}-{f['basename']}")) as w:
                 w.write(f["body"])
         rows.append({"id": sid, **{k: v for k, v in f.items() if k != "body"}, "body_saved": bool(f["body"])})
-    with open(os.path.join(a.out, "facts.json"), "w", encoding="utf-8") as w:
+    with private(os.path.join(a.out, "facts.json")) as w:
         json.dump(rows, w, ensure_ascii=False, indent=1)
 
     span = (now - oldest).days if oldest else 0
