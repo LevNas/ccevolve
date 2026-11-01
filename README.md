@@ -52,6 +52,8 @@ The advisor counter reads the block shape the Claude API documents (`server_tool
 ### Skill: `/promote-to-computation`
 Runs `scripts/ledger_report.py` (counts by kind and key over a window, candidates seen at least N times, advisor calls per session) and drafts, for each recurring judgment that always has the same answer for the same input, the computed form and the prose it would retire. A human approves every proposal; the skill never writes permission rules or settings.
 
+It also finds candidates the ledger cannot see: scripts Claude writes again and again in temporary places. `scripts/script_facts.py` reads the Claude Code transcripts on this machine (`~/.claude/projects`) and lists each throwaway script with how it was made (Write, heredoc, a `sed` copy, `cp`), its description, size and how often it ran. A read-only subagent groups them by purpose, and the skill reports the groups seen in two or more sessions or run five or more times, marked Strong, Worth exploring or Speculative, then stops for you to pick one. The window is `--days N`, else `CCEVOLVE_TRANSCRIPT_DAYS`, else 60 days. The script copies script bodies out of the transcripts, so it refuses an output folder inside a git repository.
+
 ### Skill: `/evolve-rules`
 Manages `.claude/rules/` directory:
 - List existing rules
@@ -99,7 +101,7 @@ ccevolve follows the LevNas plugin conventions maintained in [claudecode-plugins
 | `skills/<name>/references/` | Runtime reference resources | Claude Code |
 | `docs/` | Developer/operator internal docs | Contributors (humans) |
 | `hooks/` | Hook implementations and `hooks.json`; `hooks/lib/ledger.py` is the shared ledger | Claude Code |
-| `scripts/` | `ledger_report.py` (read-only counts and candidates) | Claude Code, humans |
+| `scripts/` | `ledger_report.py` (read-only counts and candidates); `script_facts.py` (facts about throwaway scripts, from transcripts) | Claude Code, humans |
 | `tests/` | `python3 tests/test_ccevolve.py` (hooks run as subprocesses against a throwaway project) | Contributors |
 
 Run the tests and the central linter before sending a PR. The linter is `scripts/lint-skills.sh` in [LevNas/claudecode-plugins](https://github.com/LevNas/claudecode-plugins); run it from your clone and pass the path of this repository:

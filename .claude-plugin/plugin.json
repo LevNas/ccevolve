@@ -1,7 +1,7 @@
 {
   "name": "ccevolve",
   "description": "Self-improving workflow for Claude Code. Records tool failures, permission prompts and advisor calls in a ledger, proposes promoting recurring ones to computed checks, and manages domain-specific rules in .claude/rules/.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "LevNas"
   },

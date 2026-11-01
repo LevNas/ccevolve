@@ -6,7 +6,7 @@ This file is not shipped with the plugin. Only sessions working inside this repo
 
 - `hooks/` — hook scripts and `hooks.json`; `hooks/lib/ledger.py` is the shared ledger
 - `skills/` — `evolve-rules`, `promote-to-computation`
-- `scripts/` — `ledger_report.py` (read-only counts and candidates)
+- `scripts/` — `ledger_report.py` (read-only counts and candidates), `script_facts.py` (facts about throwaway scripts, read from transcripts)
 - `tests/` — `test_ccevolve.py` (runs the hooks as subprocesses against a throwaway project)
 
 ## Checks before a PR

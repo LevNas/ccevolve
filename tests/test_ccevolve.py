@@ -281,6 +281,95 @@ def test_report():
         check("report: advisor calls per session", r["advisor_calls_per_session"] == {"S1": 1, "S2": 1}, r)
 
 
+SCRIPT_FACTS = os.path.join(ROOT, "scripts", "script_facts.py")
+
+
+def facts_transcripts(projects, out_dir):
+    """Two synthetic sessions: A (yesterday) creates scripts four ways, B (ten days ago) writes one."""
+    now = datetime.now(timezone.utc)
+
+    def row(days_ago, block):
+        ts = (now - timedelta(days=days_ago)).isoformat().replace("+00:00", "Z")
+        return {"type": "assistant", "timestamp": ts, "message": {"role": "assistant", "content": [block]}}
+
+    def bash(cmd):
+        return {"type": "tool_use", "id": "t", "name": "Bash", "input": {"command": cmd}}
+
+    def write(path, content):
+        return {"type": "tool_use", "id": "t", "name": "Write", "input": {"file_path": path, "content": content}}
+
+    a = [row(1, write("/tmp/ccx-fixture/gen.py", '"""Generate the fixture."""\nprint(1)\n')),
+         row(1, bash("T=/tmp/ccx-fixture; cd $T; sed 's/1/2/' gen.py > copy.py")),
+         row(1, bash("cat > /tmp/ccx-fixture/hd.sh <<'EOF'\n# heredoc script\necho hi\nEOF")),
+         row(1, bash("python3 /tmp/ccx-fixture/gen.py --in /abs/data.json")),
+         row(1, bash("python3 ~/.claude/plugins/other/gen.py")),  # same name, another script: not a run
+         row(1, write(os.path.join(out_dir, "scripts", "s0000-gen.py"), "print(0)\n")),  # the tool's own output
+         # a here-string and a shift are not heredocs: the redirect after them must still be found
+         row(1, bash("python3 /tmp/ccx-fixture/gen.py <<< \"$x\"; echo $((1<<3))\nsed 's/1/3/' /tmp/ccx-fixture/gen.py > /tmp/ccx-fixture/after.py"))]
+    b = [row(10, write("/tmp/ccx-fixture/old.py", "# an older script\n"))]
+    for name, rows in (("aaaaaaaa-0000-0000-0000-000000000001", a), ("bbbbbbbb-0000-0000-0000-000000000002", b)):
+        d = os.path.join(projects, "-proj")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, name + ".jsonl"), "w", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+
+
+def run_facts(projects, out_dir, *args, env_extra=None):
+    env = {k: v for k, v in os.environ.items() if not k.startswith("CCEVOLVE_")}
+    env.update(env_extra or {})
+    proc = subprocess.run([sys.executable, SCRIPT_FACTS, "--projects", projects, "--out", out_dir, *args],
+                          capture_output=True, text=True, env=env, cwd=projects, timeout=60)
+    rows = []
+    path = os.path.join(out_dir, "facts.json")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            rows = json.load(f)
+        os.remove(path)
+    return proc, {r["basename"]: r for r in rows}
+
+
+def test_script_facts():
+    with tempfile.TemporaryDirectory() as projects, tempfile.TemporaryDirectory(dir="/tmp") as out_dir:
+        facts_transcripts(projects, out_dir)
+        proc, rows = run_facts(projects, out_dir)
+        check("facts: runs", proc.returncode == 0, proc.stderr)
+        check("facts: write, redirect (sed copy) and heredoc found",
+              rows.get("gen.py", {}).get("methods") == ["write"] and rows.get("copy.py", {}).get("methods") == ["redirect"]
+              and rows.get("hd.sh", {}).get("methods") == ["heredoc"], rows)
+        check("facts: the tool's own output is not counted", "s0000-gen.py" not in rows, sorted(rows))
+        check("facts: description from the docstring", rows.get("gen.py", {}).get("description") == "Generate the fixture.", rows.get("gen.py"))
+        gen = rows.get("gen.py", {})
+        check("facts: runs count, a same-named script elsewhere does not", gen.get("runs") == 2, gen)
+        check("facts: argument paths kept", gen.get("arg_paths") == ["/abs/data.json"], gen)
+        sdir = os.path.join(out_dir, "scripts")
+        bodies = sorted(os.listdir(sdir)) if os.path.isdir(sdir) else []
+        check("facts: bodies saved for write and heredoc only",
+              any(b.endswith("-gen.py") for b in bodies) and any(b.endswith("-hd.sh") for b in bodies)
+              and not any(b.endswith("-copy.py") for b in bodies), bodies)
+        check("facts: a here-string or shift does not hide later lines", rows.get("after.py", {}).get("methods") == ["redirect"], sorted(rows))
+        mode = lambda p: oct(os.stat(p).st_mode & 0o777)
+        check("facts: bodies are readable by the owner only",
+              all(mode(os.path.join(sdir, b)) == "0o600" for b in bodies) and bodies, [mode(os.path.join(sdir, b)) for b in bodies])
+        first = proc.stdout.splitlines()[0] if proc.stdout else ""
+        oldest = (datetime.now(timezone.utc) - timedelta(days=10)).date().isoformat()
+        check("facts: the window line comes first", first.startswith("Window:") and "60 days" in first and oldest in first, first)
+
+        proc, rows = run_facts(projects, out_dir, "--methods", "write")
+        check("facts: write only drops the sed copy", "copy.py" not in rows and "gen.py" in rows, sorted(rows))
+
+        proc, rows = run_facts(projects, out_dir, env_extra={"CCEVOLVE_TRANSCRIPT_DAYS": "7"})
+        check("facts: CCEVOLVE_TRANSCRIPT_DAYS narrows the window", "old.py" not in rows and "gen.py" in rows, sorted(rows))
+        proc, rows = run_facts(projects, out_dir, "--days", "30", env_extra={"CCEVOLVE_TRANSCRIPT_DAYS": "7"})
+        check("facts: --days wins over the variable", "old.py" in rows, sorted(rows))
+        proc, rows = run_facts(projects, out_dir, env_extra={"CCEVOLVE_TRANSCRIPT_DAYS": "soon"})
+        check("facts: a variable that is not a number stops", proc.returncode == 2 and not rows, proc.stderr)
+
+        inside = os.path.join(ROOT, "facts-out-test")
+        proc, _ = run_facts(projects, inside)
+        check("facts: --out inside a repository stops", proc.returncode == 2 and not os.path.exists(inside), proc.stderr)
+
+
 def main():
     for t in sorted(k for k in globals() if k.startswith("test_")):
         globals()[t]()
